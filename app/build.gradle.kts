@@ -1,7 +1,12 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
 }
+
+val properties = Properties()
+properties.load(project.rootProject.file("local.properties").inputStream())
 
 android {
     namespace = "com.sergeyapp.gpsnavigation_test"
@@ -9,12 +14,14 @@ android {
 
     defaultConfig {
         applicationId = "com.sergeyapp.gpsnavigation_test"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "MAPKIT_API_KEY", "\"${properties.getProperty("MAPKIT_API_KEY")}\"")
     }
 
     buildTypes {
@@ -36,10 +43,21 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
 dependencies {
+
+    // Облегченная библиотека, содержит только карту, слой пробок,
+    // LocationManager, UserLocationLayer
+    // и возможность скачивать офлайн-карты (только в платной версии).
+    implementation(libs.maps.mobile)
+
+    // Полная библиотека в дополнение к lite версии предоставляет автомобильную маршрутизацию,
+    // веломаршрутизацию, пешеходную маршрутизацию и маршрутизацию на общественном транспорте,
+    // поиск, suggest, геокодирование и отображение панорам.
+     implementation(libs.maps.mobile.v481full)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
