@@ -1,4 +1,4 @@
-package com.sergeyapp.gpsnavigation_test.app
+package com.sergeyapp.gpsnavigation_test.presenetation.app
 
 import android.app.Application
 import com.sergeyapp.gpsnavigation_test.BuildConfig
@@ -8,6 +8,7 @@ class App: Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // init yandex map sdk
         MapKitFactory.setApiKey(BuildConfig.MAPKIT_API_KEY)
      }
 
