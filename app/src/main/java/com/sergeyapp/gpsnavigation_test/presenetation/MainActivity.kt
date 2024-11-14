@@ -1,21 +1,26 @@
 package com.sergeyapp.gpsnavigation_test.presenetation
 
 import android.Manifest
+import android.app.Activity
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import com.sergeyapp.gpsnavigation_test.R
 import com.sergeyapp.gpsnavigation_test.databinding.ActivityMainBinding
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationAccessDeniedDialog
@@ -31,6 +36,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
@@ -82,16 +88,28 @@ class MainActivity : AppCompatActivity() {
         getGeoPermission()
 
         check()
+
+        // Запуск диалога включения геолокации
+        locationSettingsLauncher = registerForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult()
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                getUserLocation() // Если геолокация включена, получаем координаты
+            } else {
+                showLocationAccessDeniedDialog()
+            }
+        }
+
     }
 
     // Запуск запроса разрешения
     fun getGeoPermission() {
         locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
-                getUserLocation()
+                checkLocationSettings()
             } else {
                 // пользователь не дал разрешения
-                this.showLocationAccessDeniedDialog()
+                showLocationAccessDeniedDialog()
             }
         }
     }
@@ -99,7 +117,7 @@ class MainActivity : AppCompatActivity() {
     // Проверяем разрешение и запрашиваем при необходимости
     private fun check(): Boolean {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            getUserLocation()
+            checkLocationSettings()
             return true
         } else {
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -137,6 +155,34 @@ class MainActivity : AppCompatActivity() {
             }
         }.addOnFailureListener {
             // Обработка ошибки получения местоположения
+        }
+    }
+
+    private fun checkLocationSettings() {
+
+        val locationRequest = LocationRequest.create().apply {
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
+        val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
+
+        val settingsClient = LocationServices.getSettingsClient(this)
+        val task = settingsClient.checkLocationSettings(builder.build())
+
+        task.addOnSuccessListener {
+            // Геолокация включена, можно получить координаты
+            getUserLocation()
+        }.addOnFailureListener { exception ->
+            if (exception is ResolvableApiException) {
+                try {
+                    // Запрос на включение геолокации
+                    val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
+                    locationSettingsLauncher.launch(intentSenderRequest)
+                } catch (sendEx: IntentSender.SendIntentException) {
+                    // Обработка ошибки отправки Intent
+                }
+            } else {
+                showLocationAccessDeniedDialog()
+            }
         }
     }
 

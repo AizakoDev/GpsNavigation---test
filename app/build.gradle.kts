@@ -49,6 +49,9 @@ android {
 
 dependencies {
 
+    // API от Google, который автоматически предлагает пользователю включить геолокацию, если она выключена.
+    implementation(libs.play.services.location)
+
     // Облегченная библиотека, содержит только карту, слой пробок,
     // LocationManager, UserLocationLayer
     // и возможность скачивать офлайн-карты (только в платной версии).
