@@ -1,10 +1,13 @@
 package com.sergeyapp.gpsnavigation_test.presenetation.map
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
@@ -27,15 +30,20 @@ import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationAccessDeni
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationFetchError
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationUnavailableMessage
 import com.yandex.mapkit.MapKitFactory
+import com.yandex.mapkit.ScreenPoint
 import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.geometry.Point
+import com.yandex.mapkit.layers.GeoObjectTapEvent
+import com.yandex.mapkit.layers.GeoObjectTapListener
 import com.yandex.mapkit.map.CameraPosition
+import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.MapObjectTapListener
 import com.yandex.mapkit.map.MapWindow
 import com.yandex.mapkit.map.TextStyle
 import com.yandex.runtime.image.ImageProvider
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(),
+    InputListener {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
@@ -47,24 +55,13 @@ class MainActivity : AppCompatActivity() {
     private var userLatitude: Double = 0.0
     private var userLongitude: Double = 0.0
 
-    // fixme тестовый список для меток
-    val points = listOf(
-        Point(59.936046, 30.326869),
-        Point(59.938185, 30.32808),
-        Point(59.937376, 30.33621),
-        Point(59.934517, 30.335059),
-    )
-
     // иконка метки
     val imageProvider by lazy { ImageProvider.fromResource(this, R.drawable.placemark_icon) }
 
     // слушатель нажатий на метку вешается на созданную метку
     private val placemarkTapListener = MapObjectTapListener { _, point ->
-        Toast.makeText(
-            this@MainActivity,
-            "Координаты метки (${point.longitude}, ${point.latitude})",
-            Toast.LENGTH_SHORT
-        ).show()
+        // placemarkInfo - выводит координаты метки
+        placemarkInfo(point)
         true
     }
 
@@ -85,6 +82,9 @@ class MainActivity : AppCompatActivity() {
         mapWindow = viewBinding.myMapView.mapWindow
         map = mapWindow.map
 
+        // Слушатель карты - от интерфейса InputListener
+        map.addInputListener(this)
+
         // Инициализация FusedLocationProviderClient
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -98,14 +98,33 @@ class MainActivity : AppCompatActivity() {
         } else {
             checkAndRequestPermission()
         }
-
         initView()
     }
 
     // fixme initView()
+    @SuppressLint("ClickableViewAccessibility")
     private fun initView() = with(viewBinding) {
 
         val pinsCollection = map.mapObjects.addCollection()
+
+        floatingActionButtonMoveUserPosition.setOnClickListener {
+            if(checkAndRequestPermission()) {
+                runUserPosition()
+            }
+        }
+
+        // todo тестовая кнопка перещения на поинт
+        viewBinding.btnCreatePoint.setOnClickListener {
+            map.move(CameraPosition(Point(59.936046, 30.326869), 17.0f, 150.0f, 30.0f))
+        }
+
+        // todo тестовый список для меток
+        val points = listOf(
+            Point(59.936046, 30.326869),
+            Point(59.938185, 30.32808),
+            Point(59.937376, 30.33621),
+            Point(59.934517, 30.335059),
+        )
 
         points.forEach { point ->
             pinsCollection.addPlacemark().apply {
@@ -119,29 +138,28 @@ class MainActivity : AppCompatActivity() {
                 addTapListener(placemarkTapListener)
             }
         }
+    }
 
-        viewBinding.floatingActionButtonMoveUserPosition.setOnClickListener {
-            if(checkAndRequestPermission()) {
-                runUserPosition()
-            }
+    override fun onMapTap(map: Map, point: Point) {
+        // Короткий там по карте
+        Toast.makeText(this@MainActivity, "Обычное нажатие на точку: $point", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onMapLongTap(map: Map, point: Point) {
+        // Долгий тап по карте
+        val latitude = point.latitude
+        val longitude = point.longitude
+
+        map.mapObjects.addPlacemark().apply {
+            geometry = Point(latitude, longitude)
+            setIcon(ImageProvider.fromResource(this@MainActivity, R.drawable.placemark_icon))
         }
+        Toast.makeText(this@MainActivity, "Долгое нажатие на точку: $point", Toast.LENGTH_SHORT).show()
     }
 
     private fun runUserPosition() {
         map.move(CameraPosition(Point(userLatitude, userLongitude), 17.0f, 150.0f, 30.0f))
     }
-
-//    private fun placeMarketGenerate() {
-//        val centerX = mapView.mapWindow.width() / 2f
-//        val centerY = mapView.mapWindow.height() / 2f
-//        val centerPoint = ScreenPoint(centerX, centerY)
-//
-//        val worldPoint = mapView.mapWindow.screenToWorld(centerPoint)
-//        map.mapObjects.addPlacemark().apply {
-//            geometry = worldPoint!!
-//            setIcon(ImageProvider.fromResource(this@MainActivity, R.drawable.placemark_icon))
-//        }
-//    }
 
     // Инициализация обработчика разрешений
     private fun initPermissionLauncher() {
