@@ -4,13 +4,13 @@ import android.Manifest
 import android.app.Activity
 import android.content.IntentSender
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -23,7 +23,10 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.LocationSettingsRequest
 import com.sergeyapp.gpsnavigation_test.R
 import com.sergeyapp.gpsnavigation_test.databinding.ActivityMainBinding
+import com.sergeyapp.gpsnavigation_test.presenetation.gps.onLocationFetched
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationAccessDeniedDialog
+import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationFetchError
+import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationUnavailableMessage
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.ScreenPoint
 import com.yandex.mapkit.geometry.Point
@@ -37,10 +40,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
-
-    companion object {
-        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
-    }
 
     private var userLatitude: Double = 0.0
     private var userLongitude: Double = 0.0
@@ -71,12 +70,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         viewBinding = ActivityMainBinding.inflate(layoutInflater).also { setContentView(it.root) }
-
-        // Инициализация карты
-        MapKitFactory.initialize(this)
-        // Инициализация FusedLocationProviderClient
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -85,107 +78,138 @@ class MainActivity : AppCompatActivity() {
 
         initView()
 
-        getGeoPermission()
+        // Инициализация карты
+        MapKitFactory.initialize(this)
 
-        check()
+        // Инициализация FusedLocationProviderClient
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Запуск диалога включения геолокации
-        locationSettingsLauncher = registerForActivityResult(
-            ActivityResultContracts.StartIntentSenderForResult()
-        ) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                getUserLocation() // Если геолокация включена, получаем координаты
-            } else {
-                showLocationAccessDeniedDialog()
-            }
+        // Инициализация обработчиков
+        initPermissionLauncher()
+        initSettingsLauncher()
+
+        // Проверка разрешения и вызов fetchUserCoordinates, если все настроено
+        if (isPermissionGranted() && isLocationSettingsSatisfied()) {
+            fetchUserCoordinates()
         }
 
     }
 
-    // Запуск запроса разрешения
-    fun getGeoPermission() {
+    // Инициализация обработчика разрешений
+    private fun initPermissionLauncher() {
         locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
-                checkLocationSettings()
+                checkLocationSettings() // Проверяем настройки после получения разрешения
             } else {
-                // пользователь не дал разрешения
                 showLocationAccessDeniedDialog()
             }
         }
     }
 
-    // Проверяем разрешение и запрашиваем при необходимости
-    private fun check(): Boolean {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+    // Инициализация обработчика настроек геолокации
+    private fun initSettingsLauncher() {
+        locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                fetchUserCoordinates()
+            } else {
+                showLocationAccessDeniedDialog()
+            }
+        }
+    }
+
+    // Проверка и запрос разрешения
+    private fun checkAndRequestPermission(): Boolean {
+        if (isPermissionGranted()) {
             checkLocationSettings()
             return true
         } else {
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            requestLocationPermission()
             return false
         }
     }
 
-    private fun getUserLocation() {
-        if (ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // Запрос разрешений
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ),
-                LOCATION_PERMISSION_REQUEST_CODE
-            )
-            return
-        }
-
-        // Код для получения местоположения, если разрешения предоставлены
-        fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
-            location?.let {
-                userLatitude = it.latitude
-                userLongitude = it.longitude
-            } ?: run {
-                // Обработка, если location равно null
-            }
-        }.addOnFailureListener {
-            // Обработка ошибки получения местоположения
-        }
+    // Проверяет, предоставлено ли разрешение
+    private fun isPermissionGranted(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun checkLocationSettings() {
+    // Запрашивает разрешение
+    private fun requestLocationPermission() {
+        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
 
+    // Проверяет настройки геолокации
+    private fun checkLocationSettings() {
         val locationRequest = LocationRequest.create().apply {
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
         }
         val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
-
         val settingsClient = LocationServices.getSettingsClient(this)
-        val task = settingsClient.checkLocationSettings(builder.build())
 
-        task.addOnSuccessListener {
-            // Геолокация включена, можно получить координаты
-            getUserLocation()
-        }.addOnFailureListener { exception ->
-            if (exception is ResolvableApiException) {
-                try {
-                    // Запрос на включение геолокации
-                    val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
-                    locationSettingsLauncher.launch(intentSenderRequest)
-                } catch (sendEx: IntentSender.SendIntentException) {
-                    // Обработка ошибки отправки Intent
-                }
-            } else {
-                showLocationAccessDeniedDialog()
+        settingsClient.checkLocationSettings(builder.build())
+            .addOnSuccessListener {
+                fetchUserCoordinates()
             }
+            .addOnFailureListener { exception ->
+                handleLocationSettingsFailure(exception)
+            }
+    }
+
+    // Проверяет, удовлетворены ли настройки геолокации
+    private fun isLocationSettingsSatisfied(): Boolean {
+        // Проверить настройки геолокации (например, включен ли GPS) — этот метод может быть вызван при необходимости
+        return true // Замените на фактическую проверку
+    }
+
+    // Обрабатывает ошибку при проверке настроек геолокации
+    private fun handleLocationSettingsFailure(exception: Exception) {
+        if (exception is ResolvableApiException) {
+            try {
+                val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
+                locationSettingsLauncher.launch(intentSenderRequest)
+            } catch (sendEx: IntentSender.SendIntentException) {
+                // Обработка ошибки отправки Intent
+            }
+        } else {
+            showLocationAccessDeniedDialog()
         }
     }
 
+    // Получение координат пользователя
+    private fun fetchUserCoordinates() {
+        if (!isPermissionGranted()) {
+            requestLocationPermission()
+            return
+        }
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    userLatitude = location.latitude
+                    userLongitude = location.longitude
+                    onLocationFetched(userLatitude, userLongitude)
+                } else {
+                    showLocationUnavailableMessage()
+                }
+            }
+            .addOnFailureListener {
+                showLocationFetchError()
+            }
+    }
+
+    // fixme initView()
     private fun initView() = with(viewBinding) {
 
         val map = mapView.mapWindow.map
@@ -219,8 +243,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewBinding.floatingActionButtonMoveUserPosition.setOnClickListener {
-            if(check()) map.move(CameraPosition(Point(userLatitude, userLongitude), 17.0f, 150.0f, 30.0f))
-            Toast.makeText(this@MainActivity, "${userLatitude} ${userLongitude}", Toast.LENGTH_SHORT).show()
+            if(checkAndRequestPermission()) {
+                map.move(CameraPosition(Point(userLatitude, userLongitude), 17.0f, 150.0f, 30.0f))
+                Toast.makeText(this@MainActivity, "${userLatitude} ${userLongitude}", Toast.LENGTH_SHORT).show()
+            } else {
+                showLocationAccessDeniedDialog()
+            }
         }
     }
 
