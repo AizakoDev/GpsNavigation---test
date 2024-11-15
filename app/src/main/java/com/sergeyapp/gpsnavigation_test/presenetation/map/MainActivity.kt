@@ -1,14 +1,10 @@
 package com.sergeyapp.gpsnavigation_test.presenetation.map
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
@@ -27,14 +23,13 @@ import com.sergeyapp.gpsnavigation_test.R
 import com.sergeyapp.gpsnavigation_test.databinding.ActivityMainBinding
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.onLocationFetched
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationAccessDeniedDialog
-import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationFetchError
-import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationUnavailableMessage
+import com.sergeyapp.gpsnavigation_test.presenetation.info.InfoMessages.COORDINATES_GETTING_FAILED
+import com.sergeyapp.gpsnavigation_test.presenetation.info.InfoMessages.COORDINATES_HAVE_NOT_BEEN_RECEIVED
+import com.sergeyapp.gpsnavigation_test.presenetation.info.showUserInfo
+import com.sergeyapp.gpsnavigation_test.presenetation.info.InfoMessages.USE_LONG_TAP_TO_SCREEN
 import com.yandex.mapkit.MapKitFactory
-import com.yandex.mapkit.ScreenPoint
 import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.geometry.Point
-import com.yandex.mapkit.layers.GeoObjectTapEvent
-import com.yandex.mapkit.layers.GeoObjectTapListener
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.MapObjectTapListener
@@ -55,13 +50,11 @@ class MainActivity : AppCompatActivity(),
     private var userLatitude: Double = 0.0
     private var userLongitude: Double = 0.0
 
-    // иконка метки
-    val imageProvider by lazy { ImageProvider.fromResource(this, R.drawable.placemark_icon) }
-
     // слушатель нажатий на метку вешается на созданную метку
-    private val placemarkTapListener = MapObjectTapListener { _, point ->
+    private val placemarkTapListener = MapObjectTapListener { mapObject, point ->
         // placemarkInfo - выводит координаты метки
         placemarkInfo(point)
+
         true
     }
 
@@ -98,63 +91,42 @@ class MainActivity : AppCompatActivity(),
         } else {
             checkAndRequestPermission()
         }
-        initView()
-    }
 
-    // fixme initView()
-    @SuppressLint("ClickableViewAccessibility")
-    private fun initView() = with(viewBinding) {
-
-        val pinsCollection = map.mapObjects.addCollection()
-
-        floatingActionButtonMoveUserPosition.setOnClickListener {
+        viewBinding.floatingActionButtonMoveUserPosition.setOnClickListener {
             if(checkAndRequestPermission()) {
                 runUserPosition()
             }
         }
 
-        // todo тестовая кнопка перещения на поинт
+        // todo тестовая кнопка перемещения на поинт
         viewBinding.btnCreatePoint.setOnClickListener {
             map.move(CameraPosition(Point(59.936046, 30.326869), 17.0f, 150.0f, 30.0f))
         }
 
-        // todo тестовый список для меток
-        val points = listOf(
-            Point(59.936046, 30.326869),
-            Point(59.938185, 30.32808),
-            Point(59.937376, 30.33621),
-            Point(59.934517, 30.335059),
-        )
-
-        points.forEach { point ->
-            pinsCollection.addPlacemark().apply {
-                geometry = point
-                setIcon(imageProvider)
-                setText("Широта: ${point.latitude}\n Долгота: ${point.longitude}", TextStyle().apply {
-                    size = 10f
-                    placement = TextStyle.Placement.RIGHT
-                    offset = 5f
-                },)
-                addTapListener(placemarkTapListener)
-            }
-        }
     }
 
+    // Короткий там по карте
     override fun onMapTap(map: Map, point: Point) {
-        // Короткий там по карте
-        Toast.makeText(this@MainActivity, "Обычное нажатие на точку: $point", Toast.LENGTH_SHORT).show()
+        showUserInfo(USE_LONG_TAP_TO_SCREEN)
     }
 
+    // Долгий тап по карте
     override fun onMapLongTap(map: Map, point: Point) {
-        // Долгий тап по карте
         val latitude = point.latitude
         val longitude = point.longitude
 
         map.mapObjects.addPlacemark().apply {
             geometry = Point(latitude, longitude)
             setIcon(ImageProvider.fromResource(this@MainActivity, R.drawable.placemark_icon))
+
+            // todo
+            setText("Название пользователя", TextStyle().apply {
+                size = 10f
+                placement = TextStyle.Placement.RIGHT
+                offset = 5f
+            },)
+            addTapListener(placemarkTapListener)
         }
-        Toast.makeText(this@MainActivity, "Долгое нажатие на точку: $point", Toast.LENGTH_SHORT).show()
     }
 
     private fun runUserPosition() {
@@ -265,11 +237,11 @@ class MainActivity : AppCompatActivity(),
                     // после получения координат перемещаемся на позицию юзера
                     runUserPosition()
                 } else {
-                    showLocationUnavailableMessage()
+                    showUserInfo(COORDINATES_HAVE_NOT_BEEN_RECEIVED)
                 }
             }
             .addOnFailureListener {
-                showLocationFetchError()
+                showUserInfo(COORDINATES_GETTING_FAILED)
             }
     }
 
@@ -284,5 +256,4 @@ class MainActivity : AppCompatActivity(),
         MapKitFactory.getInstance().onStop()
         super.onStop()
     }
-
 }
