@@ -1,4 +1,4 @@
-package com.sergeyapp.gpsnavigation_test.presenetation
+package com.sergeyapp.gpsnavigation_test.presenetation.map
 
 import android.Manifest
 import android.app.Activity
@@ -10,7 +10,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -28,10 +27,11 @@ import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationAccessDeni
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationFetchError
 import com.sergeyapp.gpsnavigation_test.presenetation.gps.showLocationUnavailableMessage
 import com.yandex.mapkit.MapKitFactory
-import com.yandex.mapkit.ScreenPoint
+import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.MapObjectTapListener
+import com.yandex.mapkit.map.MapWindow
 import com.yandex.mapkit.map.TextStyle
 import com.yandex.runtime.image.ImageProvider
 
@@ -40,6 +40,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
+
+    private lateinit var mapWindow: MapWindow
+    private lateinit var map: Map
 
     private var userLatitude: Double = 0.0
     private var userLongitude: Double = 0.0
@@ -76,10 +79,11 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        initView()
-
         // Инициализация карты
         MapKitFactory.initialize(this)
+
+        mapWindow = viewBinding.myMapView.mapWindow
+        map = mapWindow.map
 
         // Инициализация FusedLocationProviderClient
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -89,22 +93,67 @@ class MainActivity : AppCompatActivity() {
         initSettingsLauncher()
 
         // Проверка разрешения и вызов fetchUserCoordinates, если все настроено
-        if (isPermissionGranted() && isLocationSettingsSatisfied()) {
+        if (isPermissionGranted()) {
             fetchUserCoordinates()
+        } else {
+            checkAndRequestPermission()
         }
 
+        initView()
     }
 
-    // Инициализация обработчика разрешений
-    private fun initPermissionLauncher() {
-        locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                checkLocationSettings() // Проверяем настройки после получения разрешения
-            } else {
-                showLocationAccessDeniedDialog()
+    // fixme initView()
+    private fun initView() = with(viewBinding) {
+
+        val pinsCollection = map.mapObjects.addCollection()
+
+        points.forEach { point ->
+            pinsCollection.addPlacemark().apply {
+                geometry = point
+                setIcon(imageProvider)
+                setText("Широта: ${point.latitude}\n Долгота: ${point.longitude}", TextStyle().apply {
+                    size = 10f
+                    placement = TextStyle.Placement.RIGHT
+                    offset = 5f
+                },)
+                addTapListener(placemarkTapListener)
+            }
+        }
+
+        viewBinding.floatingActionButtonMoveUserPosition.setOnClickListener {
+            if(checkAndRequestPermission()) {
+                runUserPosition()
             }
         }
     }
+
+    private fun runUserPosition() {
+        map.move(CameraPosition(Point(userLatitude, userLongitude), 17.0f, 150.0f, 30.0f))
+    }
+
+//    private fun placeMarketGenerate() {
+//        val centerX = mapView.mapWindow.width() / 2f
+//        val centerY = mapView.mapWindow.height() / 2f
+//        val centerPoint = ScreenPoint(centerX, centerY)
+//
+//        val worldPoint = mapView.mapWindow.screenToWorld(centerPoint)
+//        map.mapObjects.addPlacemark().apply {
+//            geometry = worldPoint!!
+//            setIcon(ImageProvider.fromResource(this@MainActivity, R.drawable.placemark_icon))
+//        }
+//    }
+
+    // Инициализация обработчика разрешений
+    private fun initPermissionLauncher() {
+    locationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+            // Проверяем настройки после получения разрешения
+            checkLocationSettings()
+        } else {
+            showLocationAccessDeniedDialog()
+        }
+    }
+}
 
     // Инициализация обработчика настроек геолокации
     private fun initSettingsLauncher() {
@@ -157,12 +206,6 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    // Проверяет, удовлетворены ли настройки геолокации
-    private fun isLocationSettingsSatisfied(): Boolean {
-        // Проверить настройки геолокации (например, включен ли GPS) — этот метод может быть вызван при необходимости
-        return true // Замените на фактическую проверку
-    }
-
     // Обрабатывает ошибку при проверке настроек геолокации
     private fun handleLocationSettingsFailure(exception: Exception) {
         if (exception is ResolvableApiException) {
@@ -170,7 +213,7 @@ class MainActivity : AppCompatActivity() {
                 val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
                 locationSettingsLauncher.launch(intentSenderRequest)
             } catch (sendEx: IntentSender.SendIntentException) {
-                // Обработка ошибки отправки Intent
+                // Ошибка отправки Intent
             }
         } else {
             showLocationAccessDeniedDialog()
@@ -200,6 +243,9 @@ class MainActivity : AppCompatActivity() {
                     userLatitude = location.latitude
                     userLongitude = location.longitude
                     onLocationFetched(userLatitude, userLongitude)
+                    // fixme
+                    // после получения координат перемещаемся на позицию юзера
+                    runUserPosition()
                 } else {
                     showLocationUnavailableMessage()
                 }
@@ -209,57 +255,14 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    // fixme initView()
-    private fun initView() = with(viewBinding) {
-
-        val map = mapView.mapWindow.map
-
-        val pinsCollection = map.mapObjects.addCollection()
-
-        points.forEach { point ->
-            pinsCollection.addPlacemark().apply {
-                geometry = point
-                setIcon(imageProvider)
-                setText("Широта: ${point.latitude}\n Долгота: ${point.longitude}", TextStyle().apply {
-                    size = 10f
-                    placement = TextStyle.Placement.RIGHT
-                    offset = 5f
-                },)
-                addTapListener(placemarkTapListener)
-            }
-        }
-
-        // todo поинт по центру заменить на долгое нажатие
-        viewBinding.btnCreatePoint.setOnClickListener {
-            val centerX = mapView.mapWindow.width() / 2f
-            val centerY = mapView.mapWindow.height() / 2f
-            val centerPoint = ScreenPoint(centerX, centerY)
-
-            val worldPoint = mapView.mapWindow.screenToWorld(centerPoint)
-            map.mapObjects.addPlacemark().apply {
-                geometry = worldPoint!!
-                setIcon(ImageProvider.fromResource(this@MainActivity, R.drawable.placemark_icon))
-            }
-        }
-
-        viewBinding.floatingActionButtonMoveUserPosition.setOnClickListener {
-            if(checkAndRequestPermission()) {
-                map.move(CameraPosition(Point(userLatitude, userLongitude), 17.0f, 150.0f, 30.0f))
-                Toast.makeText(this@MainActivity, "${userLatitude} ${userLongitude}", Toast.LENGTH_SHORT).show()
-            } else {
-                showLocationAccessDeniedDialog()
-            }
-        }
-    }
-
     override fun onStart() {
         super.onStart()
         MapKitFactory.getInstance().onStart()
-        viewBinding.mapView.onStart()
+        viewBinding.myMapView.onStart()
     }
 
     override fun onStop() {
-        viewBinding.mapView.onStop()
+        viewBinding.myMapView.onStop()
         MapKitFactory.getInstance().onStop()
         super.onStop()
     }

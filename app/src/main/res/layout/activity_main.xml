@@ -5,10 +5,10 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".presenetation.MainActivity">
+    tools:context=".presenetation.map.MainActivity">
 
     <com.yandex.mapkit.mapview.MapView
-        android:id="@+id/mapView"
+        android:id="@+id/my_map_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" >
     </com.yandex.mapkit.mapview.MapView>
