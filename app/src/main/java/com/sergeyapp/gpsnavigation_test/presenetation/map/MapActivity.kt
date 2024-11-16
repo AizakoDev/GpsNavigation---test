@@ -16,6 +16,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
@@ -57,6 +58,9 @@ class MapActivity : AppCompatActivity(),
     private lateinit var locationPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
 
+
+    private lateinit var viewModel: MapViewModel
+
     private val localStorage = LocalStorage()
 
     private lateinit var mapWindow: MapWindow
@@ -71,6 +75,9 @@ class MapActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        viewModel = ViewModelProvider(this)[MapViewModel::class.java]
+
         viewBinding = ActivityMapBinding.inflate(layoutInflater).also { setContentView(it.root) }
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
