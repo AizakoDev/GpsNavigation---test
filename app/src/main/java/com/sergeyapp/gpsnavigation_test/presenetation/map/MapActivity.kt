@@ -351,7 +351,6 @@ class MapActivity : AppCompatActivity(),
                     userLatitude = location.latitude
                     userLongitude = location.longitude
                     onLocationFetched(userLatitude, userLongitude)
-                    // fixme
                     // после получения координат перемещаемся на позицию юзера
                     runUserPosition()
                 } else {
