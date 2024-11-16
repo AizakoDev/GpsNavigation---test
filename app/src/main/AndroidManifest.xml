@@ -18,7 +18,7 @@
         android:theme="@style/Theme.GpsNavigationTest"
         tools:targetApi="31">
         <activity
-            android:name=".presenetation.map.MainActivity"
+            android:name=".presenetation.map.MapActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

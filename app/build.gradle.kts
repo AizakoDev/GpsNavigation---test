@@ -49,18 +49,14 @@ android {
 
 dependencies {
 
+    // Gson
+    implementation(libs.google.gson)
+
     // API от Google, который автоматически предлагает пользователю включить геолокацию, если она выключена.
     implementation(libs.play.services.location)
 
-    // Облегченная библиотека, содержит только карту, слой пробок,
-    // LocationManager, UserLocationLayer
-    // и возможность скачивать офлайн-карты (только в платной версии).
-    implementation(libs.maps.mobile)
-
-    // Полная библиотека в дополнение к lite версии предоставляет автомобильную маршрутизацию,
-    // веломаршрутизацию, пешеходную маршрутизацию и маршрутизацию на общественном транспорте,
-    // поиск, suggest, геокодирование и отображение панорам.
-     implementation(libs.maps.mobile.v481full)
+    // Yandex map sdk - full version
+    implementation (libs.maps.mobile.v481full)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

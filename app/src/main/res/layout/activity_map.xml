@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".presenetation.map.MainActivity">
+    tools:context=".presenetation.map.MapActivity">
 
     <com.yandex.mapkit.mapview.MapView
         android:id="@+id/my_map_view"
@@ -30,15 +30,5 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
-    <Button
-        android:id="@+id/btnCreatePoint"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="create point"
-        android:layout_margin="25dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
